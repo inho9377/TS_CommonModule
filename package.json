@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/inho9377/TS_CommonModule#readme",
   "dependencies": {
+    "axios": "^0.27.2",
     "bignumber.js": "9.0.2",
     "bip32": "^2.0.6",
     "bip39": "^3.0.4",

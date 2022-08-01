@@ -1,9 +1,17 @@
+import { stringify } from 'querystring';
 import { logger } from '../Winston-Logger';
 
 const bip32 = require('bip32')
 const bip39 = require('bip39')
 const bitcoin = require('bitcoinjs-lib')
+const bitcore = require('bitcore-lib')
+const axios = require('axios')
 Object.defineProperty(global, '_bitcore', { get() { return undefined }, set() { } })
+
+export enum BitCoinNetWork {
+    TESTNET = 'BTCTEST',
+    MAINNET = 'BTC'
+}
 
 export function generateWallet() {
     //Define the network
@@ -33,66 +41,80 @@ Wallet generated:
 `)
 }
 
-export async function sendBitCoin(fromKeyWIF: string, toAddress: string, sendBTCAmount: number) {
-    // const key = bitcoin.ECKey.fromWIF(fromKeyWIF)
-    // // Check Address
-    // logger.info(`[sendBitCoin] SendKey : ${key.pub.getAddress().toString()}`)
+export async function sendBitCoin(fromKeyWIF: string, toAddress: string, sendBTCAmount: number, network: BitCoinNetWork) {
+    
+    const sochain_network = network.toString();
+    const satoshiToSend = getSatoshiAmount(sendBTCAmount)
 
-    // const tx = new bitcoin.TransactionBuilder();
+    let fee = 0;
+    let inputCount = 0;
+    let outputCount = 2;
 
-    const bitcore = require('bitcore-lib')
     const privateKey = bitcore.PrivateKey.fromWIF(fromKeyWIF)
     const fromAddress = privateKey.toAddress()
-    logger.info(`[sendBitCoin] SendKey : ${fromAddress}`)
 
-    // Create Address
-    // const value = new Buffer('This is a way to generate an address from a string--risky--not random--quessable!!!')
+    const utxos = await axios.get(
+        `https://sochain.com/api/v2/get_tx_unspent/${sochain_network}/${fromAddress}`
+    );
+    const transaction = new bitcore.Transaction();
+    let totalAmountAvailable = 0;
 
-    // const hash = bitcore.crypto.Hash.sha256(value)
-    // const bn = bitcore.crypto.BN.fromBuffer(hash)
-    // const toAddress = new bitcore.PrivateKey(bn, 'testnet').toAddress()
-    
-    const Insight = require('bitcore-explorers').Insight;
-    const insight = new Insight(bitcore.Networks.testnet)
-    logger.info(bitcore.Networks.testnet)
-    //https://api.bitcore.io/api/BTC/testnet/address/${fromAddress}/?unspent=true
+    let inputs = [];
+    utxos.data.data.txs.forEach(async (element) => {
+        let utxo: { satoshis: number, script: string, address: string, txId: string, utxo: string, outputIndex: string } = {
+            satoshis: null,
+            script: null,
+            address: null,
+            txId: null,
+            utxo: null,
+            outputIndex: null
+        };
+        utxo.satoshis = Math.floor(Number(element.value) * 100000000);
+        utxo.script = element.script_hex;
+        utxo.address = utxos.data.data.address;
+        utxo.txId = element.txid;
+        utxo.outputIndex = element.output_no;
+        totalAmountAvailable += utxo.satoshis;
+        inputCount += 1;
+        inputs.push(utxo);
+    });
 
-    insight.getUnspentUtxos(fromAddress, function(err, utxos) {
-        if(err) {
-            logger.error(JSON.stringify(err, null, 4))
-        }
-        else {
-            //use the UTXOs to create a transaction
-            logger.info(utxos)
-            const amount = getSatoshiAmount(sendBTCAmount)
+    const transactionSize = inputCount * 146 + outputCount * 34 + 10 - inputCount;
+    // Check if we have enough funds to cover the transaction and the fees assuming we want to pay 20 satoshis per byte
 
-            const tx = bitcore.Transaction();
-            tx.from(utxos)
-            tx.to(toAddress, 10000) // .0001 BTC
-            tx.change(fromAddress)
-            tx.fee(amount)
-            tx.sign(privateKey)
+    fee = transactionSize * 20
+    logger.info(`available : ${totalAmountAvailable}.  sendAmount : ${satoshiToSend}.  fee: ${fee}`)
+    if (totalAmountAvailable - satoshiToSend - fee < 0) {
+        throw new Error("Balance is too low for this transaction");
+    }
 
-            logger.info(`transaction: ${tx.toObject()}`)
-            tx.serialize()
+    //Set transaction input
+    transaction.from(inputs);
 
-            // const scriptIn = bitcore.Script(tx.toObject().inputs[0].script)
-            // logger.info(`input script string: ${scriptIn.toString()}`)
+    // set the recieving address and the amount to send
+    transaction.to(toAddress, satoshiToSend);
 
-            // const scriptOut = bitcore.Script(tx.toObject().outputs[0].script)
-            // logger.info(`output script string: ${scriptOut.toString()}`)
+    // Set change address - Address to receive the left over funds after transfer
+    transaction.change(fromAddress);
 
-            // tx.addData()
-            insight.broadcast(tx, function(err, returnedTxId) {
-                if (err) {
-                    logger.error(err)
-                }
-                else {
-                    logger.info(`successful broadcast : ${returnedTxId}`)
-                }
-            })
-        }
-    })
+    //manually set transaction fees: 20 satoshis per byte
+    transaction.fee(fee * 20);
+
+    // Sign transaction with your private key
+    transaction.sign(fromKeyWIF);
+
+    // serialize Transactions
+    const serializedTransaction = transaction.serialize();
+    // Send transaction
+    const result = await axios({
+        method: "POST",
+        url: `https://sochain.com/api/v2/send_tx/${sochain_network}`,
+        data: {
+            tx_hex: serializedTransaction,
+        },
+    });
+
+    return result.data.data;
 }
 
 function getSatoshiAmount(btcAmount: number): number {
