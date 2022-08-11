@@ -1,5 +1,5 @@
 import { stringify } from 'querystring';
-import { logger } from '../Winston-Logger';
+import { logger } from '../logger_module';
 
 const bitcore = require('bitcore-lib')
 const axios = require('axios')

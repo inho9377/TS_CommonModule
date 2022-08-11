@@ -1,4 +1,4 @@
-import { logger } from "../Winston-Logger";
+import { logger } from "../logger_module";
 
 const Web3 = require('web3')
 

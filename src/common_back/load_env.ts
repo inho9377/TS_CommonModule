@@ -4,7 +4,7 @@
 // Use Module : dotEnv
 
 
-import { logger } from "./Winston-Logger";
+import { logger } from "./logger_module";
 
 export enum Environment {
     TEST = "Test",

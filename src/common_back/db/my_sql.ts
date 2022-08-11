@@ -2,7 +2,7 @@
 // USE MySQL And Query Execution
 // Use Module : mysql2
 
-import { logger } from "./Winston-Logger";
+import { logger } from "../logger_module";
 
 const mysql2 = require("mysql2/promise");
 
