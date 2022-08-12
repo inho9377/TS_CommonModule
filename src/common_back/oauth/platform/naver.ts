@@ -1,6 +1,6 @@
 
 const { createUserOrLogin, setAccessTokenCookie } = require('../common/auth')
-const { APP_CONFIG_JSON } = require('../common')
+const { APP_CONFIG_JSON } = require('../common/env')
 
 type NaverProfileResponse = {
     id: string,

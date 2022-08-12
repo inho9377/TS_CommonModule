@@ -1,4 +1,4 @@
-import { logger } from "../logger_module";
+import { logger } from "../logger";
 
 const Web3 = require('web3')
 

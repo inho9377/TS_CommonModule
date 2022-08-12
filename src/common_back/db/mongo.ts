@@ -1,25 +1,17 @@
-// @ts-check
-
 const { MongoClient } = require('mongodb')
-
-const { MONGO_PASSWORD, MONGO_CLUSTER, MONGO_USER, MONGO_DBNAME } = process.env
-
-const uri = `mongodb+srv://${MONGO_USER}:${MONGO_PASSWORD}@${MONGO_CLUSTER}/${MONGO_DBNAME}?retryWrites=true&w=majority`
-const client = new MongoClient(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-})
-
+let client: import('mongodb').MongoClient = null
 let didConnect = false
 
+function start_mongo(password: string, cluster: string, user: string, dbName: string) {
+    const uri = `mongodb+srv://${user}:${password}@${cluster}/${dbName}?retryWrites=true&w=majority`
+    client = new MongoClient(uri, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+    })
 
+}
 
-/**
- * 
- * @param {string} name 
- * @returns 
- */
-async function getCollection(name) {
+async function getCollection(name: string): Promise<import('mongodb').Collection> {
     if (!didConnect) {
         await client.connect()
         didConnect = true
@@ -37,7 +29,9 @@ async function getPostsCollection() {
 }
 
 
-module.exports = {
+export {
+    start_mongo,
+    getCollection,
     getUsersCollection,
     getPostsCollection,
 }

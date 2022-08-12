@@ -1,0 +1,7 @@
+
+enum DataBase {
+    MySQL,
+    MongoDB,
+}
+
+
